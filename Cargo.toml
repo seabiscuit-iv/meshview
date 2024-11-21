@@ -4,3 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+bytemuck = "1.20.0"
+eframe = "0.29.1"
+egui = "0.29.1"
