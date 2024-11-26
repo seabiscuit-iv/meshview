@@ -1,7 +1,16 @@
-use std::default;
 
-use eframe::{egui, egui_glow, glow};
-use egui::Margin;
+use std::sync::{Arc, Mutex};
+
+use camera::Camera;
+use eframe::{egui, egui_glow, glow::{self, HasContext}};
+use egui::{mutex, Margin};
+use nalgebra::{Matrix3, Orthographic3, Vector3, Vector4};
+
+mod Shader;
+use Shader::{Mesh, ShaderProgram};
+
+
+mod camera;
 
 
 fn main() -> eframe::Result{
@@ -22,7 +31,11 @@ fn main() -> eframe::Result{
 // Main App UI
 
 struct App {
-    
+    mesh: Arc<Mutex<Mesh>>,
+    camera: Arc<Mutex<Camera>>,
+    shader_program: Arc<Mutex<ShaderProgram>>,
+    value: f32,
+    angle: (f32, f32, f32)
 }
 
 impl eframe::App for App {
@@ -39,18 +52,107 @@ impl eframe::App for App {
             });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.button("Image")
+            egui::Frame::canvas(ui.style()).show(ui, |ui| {
+                self.custom_painting(ui);
+            });
         });
+
+        egui::TopBottomPanel::bottom("Bottom Panel")
+            .frame(egui::Frame { inner_margin: 
+                Margin { 
+                    left: (10.0), right: (10.0), top: (8.0), bottom: (8.0) 
+                }, 
+                ..egui::Frame::default()
+            })
+            .show(ctx, |ui| {
+
+                ui.add(egui::DragValue::new(&mut self.value));
+                ui.add_space(4.0);
+                ui.label("Camera Position");
+                ui.add(egui::DragValue::new(&mut self.camera.lock().unwrap().pos.x));
+                ui.add(egui::DragValue::new(&mut self.camera.lock().unwrap().pos.y));
+                ui.add(egui::DragValue::new(&mut self.camera.lock().unwrap().pos.z));
+                ui.label("Camera Angle");
+                ui.add(egui::DragValue::new(&mut self.angle.0));
+                ui.add(egui::DragValue::new(&mut self.angle.1));
+                ui.add(egui::DragValue::new(&mut self.angle.2));
+
+                let rot = nalgebra::Rotation3::from_euler_angles(
+                    self.angle.0.to_radians(), 
+                    self.angle.1.to_radians(), 
+                    self.angle.2.to_radians()
+                );
+
+                let look = rot * Vector3::new(0.0, 0.0, -1.0);
+                let right = rot * Vector3::new(1.0, 0.0, 0.0);
+                self.camera.lock().unwrap().right = right;
+                self.camera.lock().unwrap().look = look;
+            });
     }
 }
 
 
 impl App {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        let _gl = cc
+        let gl = cc
             .gl
             .as_ref()
             .expect("You need to run eframe with the glow backend");
-        Self{}
+
+        let mesh = Mesh::new(gl,
+            vec![
+                Vector3::new(-0.5, -0.5, 0.0),
+                Vector3::new(0.5, -0.5, 0.0),
+                Vector3::new(0.5, 0.5, 0.0),
+                Vector3::new(-0.5, -0.5, 0.0),
+                Vector3::new(0.5, 0.5, 0.0),
+                Vector3::new(-0.5, 0.5, 0.0),
+            ].into_iter().map(|v| {
+                v + Vector3::new(0.0, 0.0, 0.0)
+            })
+            .collect(),
+            vec![
+                0, 1, 2,
+                3, 4, 5
+            ]
+        );
+        let shader_program = ShaderProgram::new(gl, "src/main.vert.glsl", "src/main.frag.glsl");
+        
+        let camera = Camera::default();
+        
+        Self { 
+            mesh: Arc::new(Mutex::new(mesh)), 
+            shader_program: Arc::new(Mutex::new(shader_program)),
+            camera: Arc::new(Mutex::new(camera)),
+            value: 0.0,
+            angle: (0.0, 0.0, 0.0)
+        }
+    }
+
+    fn custom_painting(&mut self, ui : &mut egui::Ui) {
+        let (rect, response) =
+            ui.allocate_exact_size(egui::Vec2::splat(400.0), egui::Sense::drag());
+
+        let shader_program = self.shader_program.clone();
+        let mesh = self.mesh.clone();
+        let camera = self.camera.clone();
+
+        let value = self.value;
+
+        let callback = egui::PaintCallback {
+            rect,
+            callback: std::sync::Arc::new(egui_glow::CallbackFn::new(move |_info, painter| {
+                unsafe { 
+                    painter.gl().use_program(Some((*shader_program.lock().unwrap()).program));
+                    painter.gl().uniform_1_f32(
+                        Some(&painter.gl().get_uniform_location(shader_program.lock().unwrap().program, "u_Offset").unwrap()), 
+                        value
+                    );
+                };
+
+                shader_program.lock().unwrap().paint(painter.gl(), &mesh.lock().unwrap(), &camera.lock().unwrap());
+            })),
+        };
+        ui.painter().add(callback);
     }
 }
