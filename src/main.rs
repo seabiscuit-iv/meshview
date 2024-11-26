@@ -2,7 +2,7 @@
 use std::sync::{Arc, Mutex};
 
 use camera::Camera;
-use eframe::{egui, egui_glow, glow::{self, HasContext}};
+use eframe::{egui, egui_glow, glow::{self, HasContext, RIGHT}};
 use egui::{mutex, Margin};
 use nalgebra::{Matrix3, Orthographic3, Vector3, Vector4};
 
@@ -66,28 +66,68 @@ impl eframe::App for App {
             })
             .show(ctx, |ui| {
 
-                ui.add(egui::DragValue::new(&mut self.value));
                 ui.add_space(4.0);
                 ui.label("Camera Position");
                 ui.add(egui::DragValue::new(&mut self.camera.lock().unwrap().pos.x));
                 ui.add(egui::DragValue::new(&mut self.camera.lock().unwrap().pos.y));
                 ui.add(egui::DragValue::new(&mut self.camera.lock().unwrap().pos.z));
-                ui.label("Camera Angle");
-                ui.add(egui::DragValue::new(&mut self.angle.0));
-                ui.add(egui::DragValue::new(&mut self.angle.1));
-                ui.add(egui::DragValue::new(&mut self.angle.2));
 
-                let rot = nalgebra::Rotation3::from_euler_angles(
-                    self.angle.0.to_radians(), 
-                    self.angle.1.to_radians(), 
-                    self.angle.2.to_radians()
-                );
-
-                let look = rot * Vector3::new(0.0, 0.0, -1.0);
-                let right = rot * Vector3::new(1.0, 0.0, 0.0);
-                self.camera.lock().unwrap().right = right;
-                self.camera.lock().unwrap().look = look;
+                if ctx.input(|i| i.key_down(egui::Key::W)) {
+                    ui.label("True");
+                } else {
+                    ui.label("False");
+                }
             });
+
+        //update logic
+        let rot = nalgebra::Rotation3::from_euler_angles(
+            self.angle.0.to_radians(), 
+            self.angle.1.to_radians(), 
+            self.angle.2.to_radians()
+        );
+
+        if ctx.input(|i| i.key_down(egui::Key::W)) {
+            let mut cam = self.camera.lock().unwrap();
+            let look = cam.look;
+            cam.pos += look * 0.1;
+        }
+        if ctx.input(|i| i.key_down(egui::Key::S)) {
+            let mut cam = self.camera.lock().unwrap();
+            let look = cam.look;
+            cam.pos += look * -0.1;
+        }
+
+        if ctx.input(|i| i.key_down(egui::Key::A)) {
+            let mut cam = self.camera.lock().unwrap();
+            let right = cam.right;
+            cam.pos += right * -0.1;
+        }
+
+        if ctx.input(|i| i.key_down(egui::Key::D)) {
+            let mut cam = self.camera.lock().unwrap();
+            let right = cam.right;
+            cam.pos += right * 0.1;
+        }
+
+        if ctx.input(|i| i.key_down(egui::Key::Q)) {
+            let mut cam = self.camera.lock().unwrap();
+            let up = cam.get_up_vec() ;
+            cam.pos += up * -0.1;
+        }
+        
+        if ctx.input(|i| i.key_down(egui::Key::E)) {
+            let mut cam = self.camera.lock().unwrap();
+            let up = cam.get_up_vec() ;
+            cam.pos += up * 0.1;
+        }
+
+
+        let look = rot * Vector3::new(0.0, 0.0, -1.0);
+        let right = rot * Vector3::new(1.0, 0.0, 0.0);
+        self.camera.lock().unwrap().right = right;
+        self.camera.lock().unwrap().look = look;
+
+        ctx.request_repaint();
     }
 }
 
@@ -136,6 +176,9 @@ impl App {
         let shader_program = self.shader_program.clone();
         let mesh = self.mesh.clone();
         let camera = self.camera.clone();
+
+        self.angle.0 += response.drag_motion().y * -0.1;
+        self.angle.1 += response.drag_motion().x * -0.1;
 
         let value = self.value;
 
