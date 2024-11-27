@@ -1,5 +1,7 @@
 
-use std::sync::{Arc, Mutex};
+use std::{default, sync::{Arc, Mutex}};
+
+use tobj;
 
 use camera::Camera;
 use eframe::{egui, egui_glow, glow::{self, HasContext, RIGHT}};
@@ -18,6 +20,7 @@ fn main() -> eframe::Result{
         viewport: egui::ViewportBuilder::default().with_inner_size([800.0, 600.0]).with_position([100.0, 100.0]),
         multisampling: 4,
         renderer: eframe::Renderer::Glow,
+        depth_buffer: 16,
         ..Default::default()
     };
     eframe::run_native(
@@ -79,48 +82,51 @@ impl eframe::App for App {
                 }
             });
 
-        //update logic
+        // update logic
         let rot = nalgebra::Rotation3::from_euler_angles(
             self.angle.0.to_radians(), 
             self.angle.1.to_radians(), 
             self.angle.2.to_radians()
         );
 
-        if ctx.input(|i| i.key_down(egui::Key::W)) {
-            let mut cam = self.camera.lock().unwrap();
-            let look = cam.look;
-            cam.pos += look * 0.1;
+        // MOVEMENT HANDLER 
+        {
+            if ctx.input(|i| i.key_down(egui::Key::W)) {
+                let mut cam = self.camera.lock().unwrap();
+                let look = cam.look;
+                cam.pos += look * 0.1;
+            }
+            if ctx.input(|i| i.key_down(egui::Key::S)) {
+                let mut cam = self.camera.lock().unwrap();
+                let look = cam.look;
+                cam.pos += look * -0.1;
+            }
+    
+            if ctx.input(|i| i.key_down(egui::Key::A)) {
+                let mut cam = self.camera.lock().unwrap();
+                let right = cam.right;
+                cam.pos += right * -0.1;
+            }
+    
+            if ctx.input(|i| i.key_down(egui::Key::D)) {
+                let mut cam = self.camera.lock().unwrap();
+                let right = cam.right;
+                cam.pos += right * 0.1;
+            }
+    
+            if ctx.input(|i| i.key_down(egui::Key::Q)) {
+                let mut cam = self.camera.lock().unwrap();
+                let up = cam.get_up_vec() ;
+                cam.pos += up * -0.1;
+            }
+            
+            if ctx.input(|i| i.key_down(egui::Key::E)) {
+                let mut cam = self.camera.lock().unwrap();
+                let up = cam.get_up_vec() ;
+                cam.pos += up * 0.1;
+            }
+    
         }
-        if ctx.input(|i| i.key_down(egui::Key::S)) {
-            let mut cam = self.camera.lock().unwrap();
-            let look = cam.look;
-            cam.pos += look * -0.1;
-        }
-
-        if ctx.input(|i| i.key_down(egui::Key::A)) {
-            let mut cam = self.camera.lock().unwrap();
-            let right = cam.right;
-            cam.pos += right * -0.1;
-        }
-
-        if ctx.input(|i| i.key_down(egui::Key::D)) {
-            let mut cam = self.camera.lock().unwrap();
-            let right = cam.right;
-            cam.pos += right * 0.1;
-        }
-
-        if ctx.input(|i| i.key_down(egui::Key::Q)) {
-            let mut cam = self.camera.lock().unwrap();
-            let up = cam.get_up_vec() ;
-            cam.pos += up * -0.1;
-        }
-        
-        if ctx.input(|i| i.key_down(egui::Key::E)) {
-            let mut cam = self.camera.lock().unwrap();
-            let up = cam.get_up_vec() ;
-            cam.pos += up * 0.1;
-        }
-
 
         let look = rot * Vector3::new(0.0, 0.0, -1.0);
         let right = rot * Vector3::new(1.0, 0.0, 0.0);
@@ -139,23 +145,26 @@ impl App {
             .as_ref()
             .expect("You need to run eframe with the glow backend");
 
-        let mesh = Mesh::new(gl,
-            vec![
-                Vector3::new(-0.5, -0.5, 0.0),
-                Vector3::new(0.5, -0.5, 0.0),
-                Vector3::new(0.5, 0.5, 0.0),
-                Vector3::new(-0.5, -0.5, 0.0),
-                Vector3::new(0.5, 0.5, 0.0),
-                Vector3::new(-0.5, 0.5, 0.0),
-            ].into_iter().map(|v| {
-                v + Vector3::new(0.0, 0.0, 0.0)
-            })
-            .collect(),
-            vec![
-                0, 1, 2,
-                3, 4, 5
-            ]
+
+        let mut load_options = tobj::LoadOptions::default();
+        load_options.triangulate = true;
+        load_options.ignore_lines = true;
+        load_options.ignore_points = true;
+        load_options.single_index = true;
+
+        let mesh_obj = tobj::load_obj("cube.obj", &load_options);
+        assert!(mesh_obj.is_ok());
+
+        let (mesh_objs, _) = mesh_obj.expect("FAILED TO LOAD OBJ");
+        let mesh_obj = mesh_objs[0].clone();
+
+        let mesh = Mesh::new(&gl, 
+            mesh_obj.mesh.positions.chunks_exact(3).into_iter().map(|chunk| {Vector3::new(chunk[0], chunk[1], chunk[2])}).collect(), 
+            mesh_obj.mesh.indices.chunks_exact(3).map(|c| {
+                [c[0], c[1], c[2]]
+            }).flatten().collect()
         );
+
         let shader_program = ShaderProgram::new(gl, "src/main.vert.glsl", "src/main.frag.glsl");
         
         let camera = Camera::default();
@@ -185,14 +194,6 @@ impl App {
         let callback = egui::PaintCallback {
             rect,
             callback: std::sync::Arc::new(egui_glow::CallbackFn::new(move |_info, painter| {
-                unsafe { 
-                    painter.gl().use_program(Some((*shader_program.lock().unwrap()).program));
-                    painter.gl().uniform_1_f32(
-                        Some(&painter.gl().get_uniform_location(shader_program.lock().unwrap().program, "u_Offset").unwrap()), 
-                        value
-                    );
-                };
-
                 shader_program.lock().unwrap().paint(painter.gl(), &mesh.lock().unwrap(), &camera.lock().unwrap());
             })),
         };

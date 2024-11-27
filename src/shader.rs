@@ -1,6 +1,8 @@
 // pub mod Shader {
-    use eframe::glow::{self};
+    use eframe::glow::{self, HasContext};
+    use egui::Vec2;
     use nalgebra::{Vector2, Vector3, Vector4};
+    use rand;
 
     use crate::camera::Camera;
 
@@ -69,6 +71,7 @@
             }
         }
 
+
         pub fn destroy(&self, gl: &glow::Context) {
             use glow::HasContext as _;
             unsafe {
@@ -80,6 +83,11 @@
             use glow::HasContext as _;
 
             unsafe {
+                
+                gl.clear(glow::DEPTH_BUFFER_BIT);
+                gl.depth_func(glow::LESS);
+                gl.enable(glow::DEPTH_TEST);
+
                 gl.use_program(Some(self.program));
 
                 gl.uniform_matrix_4_f32_slice(
@@ -100,6 +108,10 @@
     
     #[derive(Debug)]
     pub struct Mesh {
+        positions: Vec<Vector3<f32>>,
+        indicies : Vec<u32>,
+        uvs: Vec<Vector2<f32>>,
+        colors: Vec<Vector4<f32>>,
         vertex_array: glow::VertexArray,
         position_buffer: glow::Buffer,
         color_buffer: glow::Buffer,
@@ -128,32 +140,36 @@
                 for (i, pos) in positions.iter().enumerate() {
                     let i = i as f32;
 
-                    let col = Vector3::new(
-                        pos.x.fract(),
-                        pos.y.fract(),
-                        0.0,
-                    );
-                    let col = col.push(1.0);
-                    colors.push(col);
+                    if i as i32 % 3 == 0 {
+                        let col = Vector3::new(
+                            rand::random::<f32>().fract(),
+                            rand::random::<f32>().fract(),
+                            rand::random::<f32>().fract()
+                        );
+                        let col = col.push(0.0);
+                        colors.push(col);
+                    } else {
+                        colors.push(colors[i as usize - 1]);
+                    }
                 }
 
-                let position_buffer = gl.create_buffer().expect("Cannot create position buffer");
+                let position_buffer: glow::NativeBuffer = gl.create_buffer().expect("Cannot create position buffer");
                 let color_buffer = gl.create_buffer().expect("Cannot create color buffer");
                 let uv_buffer = gl.create_buffer().expect("Cannot create uv buffer");
                 let index_buffer = gl.create_buffer().expect("Cannot create index buffer");
 
                 gl.bind_buffer(glow::ARRAY_BUFFER, Some(position_buffer));
-                gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytemuck::cast_slice(&positions.into_iter().flat_map(|x| {
+                gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytemuck::cast_slice(&positions.iter().flat_map(|x| {
                     vec![x.x, x.y, x.z, 1.0].into_iter()
                 }).collect::<Vec<f32>>()), glow::STATIC_DRAW);
 
                 gl.bind_buffer(glow::ARRAY_BUFFER, Some(color_buffer));
-                gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytemuck::cast_slice(&colors.into_iter().flat_map(|x| {
+                gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytemuck::cast_slice(&colors.iter().flat_map(|x| {
                     vec![x.x, x.y, x.z, 1.0].into_iter()
                 }).collect::<Vec<f32>>()), glow::STATIC_DRAW);
 
                 gl.bind_buffer(glow::ARRAY_BUFFER, Some(uv_buffer));
-                gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytemuck::cast_slice(&uvs.into_iter().flat_map(|x|{
+                gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytemuck::cast_slice(&uvs.iter().flat_map(|x|{
                     vec![x.x, x.y].into_iter()
                 }).collect::<Vec<f32>>()), glow::STATIC_DRAW);
 
@@ -178,6 +194,10 @@
                 gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(index_buffer));
 
                 Self {
+                    positions: positions.clone(), 
+                    indicies: indicies.clone(),
+                    uvs: uvs.clone(),
+                    colors: colors.clone(),
                     vertex_array,
                     position_buffer,
                     color_buffer,
@@ -187,6 +207,51 @@
                 }
             }
         }
+
+
+
+        pub fn reload_gl_buffers(&mut self, gl: &glow::Context) {
+            use glow::HasContext as _;
+
+            unsafe { 
+                gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
+                gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.position_buffer));
+                gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytemuck::cast_slice(&self.positions.iter().flat_map(|x| {
+                    vec![x.x, x.y, x.z, 1.0].into_iter()
+                }).collect::<Vec<f32>>()), glow::STATIC_DRAW);
+
+                gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.color_buffer));
+                gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytemuck::cast_slice(&self.colors.iter().flat_map(|x| {
+                    vec![x.x, x.y, x.z, 1.0].into_iter()
+                }).collect::<Vec<f32>>()), glow::STATIC_DRAW);
+
+                gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.uv_buffer));
+                gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytemuck::cast_slice(&self.uvs.iter().flat_map(|x|{
+                    vec![x.x, x.y].into_iter()
+                }).collect::<Vec<f32>>()), glow::STATIC_DRAW);
+
+                let vertex_array = gl.create_vertex_array().expect("Cannot create vertex array");
+                gl.bind_vertex_array(Some(vertex_array));
+                
+                gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(self.index_buffer));
+                gl.buffer_data_u8_slice(glow::ELEMENT_ARRAY_BUFFER, bytemuck::cast_slice(&self.indicies), glow::STATIC_DRAW);
+
+                gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.position_buffer));
+                gl.vertex_attrib_pointer_f32(0, 4, glow::FLOAT, false, 0, 0);  // Position (2 floats per vertex)
+                gl.enable_vertex_attrib_array(0);  // Enable position attribute
+
+                gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.color_buffer));
+                gl.vertex_attrib_pointer_f32(1, 4, glow::FLOAT, false, 0, 0);  // Color (4 floats per vertex)
+                gl.enable_vertex_attrib_array(1);  // Enable color attribute
+
+                gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.uv_buffer));
+                gl.vertex_attrib_pointer_f32(2, 2, glow::FLOAT, false, 0, 0);
+                gl.enable_vertex_attrib_array(2);  // Enable uv attribute
+
+                gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(self.index_buffer));
+            }
+        }
+
 
 
         pub fn destroy(&self, gl: &glow::Context) {

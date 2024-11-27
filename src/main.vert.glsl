@@ -8,7 +8,6 @@ out vec4 fs_col;
 out vec2 fs_uv; 
 
 uniform mat4 u_ViewProj;
-uniform float u_Offset;
 
 void main() {
     // fs_col = vs_col;
@@ -17,9 +16,8 @@ void main() {
 
     vec4 pos = vs_pos;
 
-    pos.z += u_Offset;
-    
     pos =  u_ViewProj * pos;
+    // pos.z = 0;
     // pos /= pos.w;
 
     gl_Position = pos;
