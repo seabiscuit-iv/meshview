@@ -152,17 +152,23 @@ impl App {
         load_options.ignore_points = true;
         load_options.single_index = true;
 
-        let mesh_obj = tobj::load_obj("cube.obj", &load_options);
+        let mesh_obj = tobj::load_obj("cow.obj", &load_options);
         assert!(mesh_obj.is_ok());
 
         let (mesh_objs, _) = mesh_obj.expect("FAILED TO LOAD OBJ");
         let mesh_obj = mesh_objs[0].clone();
 
+        let positions = mesh_obj.mesh.positions.chunks_exact(3).into_iter().map(|chunk| {
+            Vector3::new(chunk[0], chunk[1], chunk[2])
+        }).collect::<Vec<Vector3<f32>>>();
+
+        let indicies = mesh_obj.mesh.indices.chunks_exact(3).map(|c| {
+            [c[0], c[1], c[2]]
+        }).flatten().collect::<Vec<u32>>();
+
         let mesh = Mesh::new(&gl, 
-            mesh_obj.mesh.positions.chunks_exact(3).into_iter().map(|chunk| {Vector3::new(chunk[0], chunk[1], chunk[2])}).collect(), 
-            mesh_obj.mesh.indices.chunks_exact(3).map(|c| {
-                [c[0], c[1], c[2]]
-            }).flatten().collect()
+            indicies.iter().map(|i| {positions[*i as usize]}).collect::<Vec<Vector3<f32>>>(), 
+            (0..indicies.len()).map(|x| {x as u32}).collect()
         );
 
         let shader_program = ShaderProgram::new(gl, "src/main.vert.glsl", "src/main.frag.glsl");

@@ -146,7 +146,7 @@
                             rand::random::<f32>().fract(),
                             rand::random::<f32>().fract()
                         );
-                        let col = col.push(0.0);
+                        let col = col.push(1.0);
                         colors.push(col);
                     } else {
                         colors.push(colors[i as usize - 1]);
@@ -163,9 +163,11 @@
                     vec![x.x, x.y, x.z, 1.0].into_iter()
                 }).collect::<Vec<f32>>()), glow::STATIC_DRAW);
 
+                println!("{:?}", &indicies);
+
                 gl.bind_buffer(glow::ARRAY_BUFFER, Some(color_buffer));
                 gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytemuck::cast_slice(&colors.iter().flat_map(|x| {
-                    vec![x.x, x.y, x.z, 1.0].into_iter()
+                    vec![x.x, x.y, x.z, x.w].into_iter()
                 }).collect::<Vec<f32>>()), glow::STATIC_DRAW);
 
                 gl.bind_buffer(glow::ARRAY_BUFFER, Some(uv_buffer));
