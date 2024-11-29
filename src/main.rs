@@ -57,6 +57,23 @@ impl eframe::App for App {
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::Frame::canvas(ui.style()).show(ui, |ui| {
                 self.custom_painting(ui);
+                
+            });
+
+
+            ui.collapsing("Camera Position", |ui| {
+                ui.horizontal(|ui| {
+                    ui.add(egui::DragValue::new(&mut self.camera.lock().unwrap().pos.x));
+                    ui.add(egui::DragValue::new(&mut self.camera.lock().unwrap().pos.y));
+                    ui.add(egui::DragValue::new(&mut self.camera.lock().unwrap().pos.z));
+                })
+            });
+            ui.collapsing("Camera Rotation", |ui| {
+                ui.horizontal(|ui| {
+                    ui.add(egui::DragValue::new(&mut self.angle.0));
+                    ui.add(egui::DragValue::new(&mut self.angle.1));
+                    ui.add(egui::DragValue::new(&mut self.angle.2));
+                })
             });
         });
 
@@ -68,18 +85,7 @@ impl eframe::App for App {
                 ..egui::Frame::default()
             })
             .show(ctx, |ui| {
-
-                ui.add_space(4.0);
-                ui.label("Camera Position");
-                ui.add(egui::DragValue::new(&mut self.camera.lock().unwrap().pos.x));
-                ui.add(egui::DragValue::new(&mut self.camera.lock().unwrap().pos.y));
-                ui.add(egui::DragValue::new(&mut self.camera.lock().unwrap().pos.z));
-
-                if ctx.input(|i| i.key_down(egui::Key::W)) {
-                    ui.label("True");
-                } else {
-                    ui.label("False");
-                }
+                
             });
 
         // update logic
@@ -132,7 +138,7 @@ impl eframe::App for App {
         let right = rot * Vector3::new(1.0, 0.0, 0.0);
         self.camera.lock().unwrap().right = right;
         self.camera.lock().unwrap().look = look;
-
+        
         ctx.request_repaint();
     }
 }
