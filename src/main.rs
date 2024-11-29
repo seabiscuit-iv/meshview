@@ -1,5 +1,5 @@
 
-use std::{default, sync::{Arc, Mutex}};
+use std::{default, ops::RangeInclusive, sync::{Arc, Mutex}};
 
 use tobj;
 
@@ -17,7 +17,7 @@ mod camera;
 
 fn main() -> eframe::Result{
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([800.0, 600.0]).with_position([100.0, 100.0]),
+        viewport: egui::ViewportBuilder::default().with_inner_size([420.0, 600.0]).with_position([100.0, 100.0]),
         multisampling: 4,
         renderer: eframe::Renderer::Glow,
         depth_buffer: 16,
@@ -38,7 +38,8 @@ struct App {
     camera: Arc<Mutex<Camera>>,
     shader_program: Arc<Mutex<ShaderProgram>>,
     value: f32,
-    angle: (f32, f32, f32)
+    angle: (f32, f32, f32),
+    speed: f32
 }
 
 impl eframe::App for App {
@@ -51,7 +52,37 @@ impl eframe::App for App {
                 ..egui::Frame::default()
             })
             .show(ctx, |ui| {
-                ui.button("Top Panel")
+                if ui.button("Open File").clicked() {
+                    if let Some(path) = rfd::FileDialog::new().pick_file() {
+                        let mut load_options = tobj::LoadOptions::default();
+                        load_options.triangulate = true;
+                        load_options.ignore_lines = true;
+                        load_options.ignore_points = true;
+                        load_options.single_index = true;
+
+                        let mesh_obj = tobj::load_obj(path, &load_options);
+                        assert!(mesh_obj.is_ok());
+                
+                        let (mesh_objs, _) = mesh_obj.expect("FAILED TO LOAD OBJ");
+                        let mesh_obj = mesh_objs[0].clone();
+                
+                        let positions = mesh_obj.mesh.positions.chunks_exact(3).into_iter().map(|chunk| {
+                            Vector3::new(chunk[0], chunk[1], chunk[2])
+                        }).collect::<Vec<Vector3<f32>>>();
+                
+                        let indicies = mesh_obj.mesh.indices.chunks_exact(3).map(|c| {
+                            [c[0], c[1], c[2]]
+                        }).flatten().collect::<Vec<u32>>();
+                
+                        let mesh = Mesh::new(&_frame.gl().unwrap(), 
+                            indicies.iter().map(|i| {positions[*i as usize]}).collect::<Vec<Vector3<f32>>>(), 
+                            (0..indicies.len()).map(|x| {x as u32}).collect()
+                        );
+
+                        *self.mesh.lock().unwrap() = mesh;
+                        println!("New Mesh with {} verts", self.mesh.lock().unwrap().positions.len());
+                    }
+                }
             });
 
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -59,6 +90,8 @@ impl eframe::App for App {
                 self.custom_painting(ui);
                 
             });
+            ui.label(format!("Verts: {}", self.mesh.lock().unwrap().positions.len()));
+            ui.label(format!("Tris: {}", self.mesh.lock().unwrap().indicies.len()/3));
 
 
             ui.collapsing("Camera Position", |ui| {
@@ -75,6 +108,10 @@ impl eframe::App for App {
                     ui.add(egui::DragValue::new(&mut self.angle.2));
                 })
             });
+
+            ui.collapsing("Camera Speed", |ui| {
+                ui.add(egui::Slider::new(&mut self.speed, RangeInclusive::new(0.0, 20.0)));
+            });
         });
 
         // update logic
@@ -89,36 +126,36 @@ impl eframe::App for App {
             if ctx.input(|i| i.key_down(egui::Key::W)) {
                 let mut cam = self.camera.lock().unwrap();
                 let look = cam.look;
-                cam.pos += look * 0.1;
+                cam.pos += look * 0.01 * self.speed;
             }
             if ctx.input(|i| i.key_down(egui::Key::S)) {
                 let mut cam = self.camera.lock().unwrap();
                 let look = cam.look;
-                cam.pos += look * -0.1;
+                cam.pos += look * -0.01 * self.speed;
             }
     
             if ctx.input(|i| i.key_down(egui::Key::A)) {
                 let mut cam = self.camera.lock().unwrap();
                 let right = cam.right;
-                cam.pos += right * -0.1;
+                cam.pos += right * -0.01 * self.speed;
             }
     
             if ctx.input(|i| i.key_down(egui::Key::D)) {
                 let mut cam = self.camera.lock().unwrap();
                 let right = cam.right;
-                cam.pos += right * 0.1;
+                cam.pos += right * 0.01 * self.speed;
             }
     
             if ctx.input(|i| i.key_down(egui::Key::Q)) {
                 let mut cam = self.camera.lock().unwrap();
                 let up = cam.get_up_vec() ;
-                cam.pos += up * -0.1;
+                cam.pos += up * -0.01 * self.speed;
             }
             
             if ctx.input(|i| i.key_down(egui::Key::E)) {
                 let mut cam = self.camera.lock().unwrap();
                 let up = cam.get_up_vec() ;
-                cam.pos += up * 0.1;
+                cam.pos += up * 0.01 * self.speed;
             }
     
         }
@@ -175,7 +212,8 @@ impl App {
             shader_program: Arc::new(Mutex::new(shader_program)),
             camera: Arc::new(Mutex::new(camera)),
             value: 0.0,
-            angle: (0.0, 0.0, 0.0)
+            angle: (0.0, 0.0, 0.0),
+            speed: 10.0
         }
     }
 
