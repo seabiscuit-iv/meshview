@@ -77,17 +77,6 @@ impl eframe::App for App {
             });
         });
 
-        egui::TopBottomPanel::bottom("Bottom Panel")
-            .frame(egui::Frame { inner_margin: 
-                Margin { 
-                    left: (10.0), right: (10.0), top: (8.0), bottom: (8.0) 
-                }, 
-                ..egui::Frame::default()
-            })
-            .show(ctx, |ui| {
-                
-            });
-
         // update logic
         let rot = nalgebra::Rotation3::from_euler_angles(
             self.angle.0.to_radians(), 
