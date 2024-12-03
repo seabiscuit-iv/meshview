@@ -97,7 +97,7 @@
                 );
 
                 gl.bind_vertex_array(Some(mesh.vertex_array));
-                gl.draw_elements(glow::TRIANGLES, mesh.index_buffer_size as i32, glow::UNSIGNED_INT, 0);
+                gl.draw_elements(glow::LINES, mesh.index_buffer_size as i32, glow::UNSIGNED_INT, 0);
             }
         }
     }
@@ -162,7 +162,9 @@
                 let vertex_array = gl.create_vertex_array().expect("Cannot create vertex array");
                 gl.bind_vertex_array(Some(vertex_array));
                 gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(index_buffer));
-                gl.buffer_data_u8_slice(glow::ELEMENT_ARRAY_BUFFER, bytemuck::cast_slice(&indicies), glow::STATIC_DRAW);
+                gl.buffer_data_u8_slice(glow::ELEMENT_ARRAY_BUFFER, bytemuck::cast_slice(&indicies.chunks_exact(3).map(|x| {
+                    [x[0], x[1], x[1], x[2], x[2], x[0]]
+                } ).flatten().collect::<Vec<u32>>()), glow::STATIC_DRAW);
 
                 gl.bind_buffer(glow::ARRAY_BUFFER, Some(position_buffer));
                 gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytemuck::cast_slice(&positions.iter().flat_map(|x| {
@@ -195,7 +197,7 @@
                     color_buffer,
                     index_buffer,
                     uv_buffer,
-                    index_buffer_size: indicies.len() as u32
+                    index_buffer_size: 2*indicies.len() as u32
                 }
             }
         }
