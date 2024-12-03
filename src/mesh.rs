@@ -28,11 +28,6 @@ impl Mesh {
 
             let mut uvs = uvs.clone();
             
-            for _ in 0..vert_count {
-                let x : Vector2<f32> = [0.0, 0.0].into();
-                uvs.push(x);
-            }
-            
             let mut colors: Vec<Vector4<f32>> = Vec::new();
 
             for (i, pos) in positions.iter().enumerate() {
@@ -108,7 +103,12 @@ impl Mesh {
 
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.color_buffer));
             gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytemuck::cast_slice(&self.colors.iter().flat_map(|x| {
-                vec![x.x, x.y, x.z, x.w].into_iter()
+                if !self.wireframe {
+                    vec![x.x, x.y, x.z, x.w].into_iter()
+                } else {
+                    vec![1.0, 1.0, 1.0, 1.0].into_iter()
+                }
+                
             }).collect::<Vec<f32>>()), glow::STATIC_DRAW);
             gl.vertex_attrib_pointer_f32(1, 4, glow::FLOAT, false, 0, 0);  // Color (4 floats per vertex)
             gl.enable_vertex_attrib_array(1);  // Enable color attribute

@@ -88,7 +88,7 @@ impl eframe::App for App {
                         let mesh = Mesh::new(&_frame.gl().unwrap(), 
                             indicies.iter().map(|i| {positions[*i as usize]}).collect::<Vec<Vector3<f32>>>(), 
                             (0..indicies.len()).map(|x| {x as u32}).collect(),
-                            uvs,
+                            texcoords,
                             false
                         );
 
@@ -199,39 +199,10 @@ impl App {
             .as_ref()
             .expect("You need to run eframe with the glow backend");
 
-
-        let mut load_options = tobj::LoadOptions::default();
-        load_options.triangulate = true;
-        load_options.ignore_lines = true;
-        load_options.ignore_points = true;
-        load_options.single_index = true;
-
-        let mesh_obj = tobj::load_obj("cow.obj", &load_options);
-        assert!(mesh_obj.is_ok());
-
-        let (mesh_objs, _) = mesh_obj.expect("FAILED TO LOAD OBJ");
-        let mesh_obj = mesh_objs[0].clone();
-
-        let positions = mesh_obj.mesh.positions.chunks_exact(3).into_iter().map(|chunk| {
-            Vector3::new(chunk[0], chunk[1], chunk[2])
-        }).collect::<Vec<Vector3<f32>>>();
-
-        let indicies = mesh_obj.mesh.indices.chunks_exact(3).map(|c| {
-            [c[0], c[1], c[2]]
-        }).flatten().collect::<Vec<u32>>();
-
-        let texcoords = mesh_obj.mesh.texcoords.chunks_exact(2).map(|x| {
-            Vector2::new(x[0], x[1])
-        }).collect::<Vec<Vector2<f32>>>();
-
-        let uvs = mesh_obj.mesh.texcoord_indices.iter().map(|x| {
-            texcoords[*x as usize]
-        }).collect::<Vec<Vector2<f32>>>();
-
         let mesh = Mesh::new(&gl, 
-            indicies.iter().map(|i| {positions[*i as usize]}).collect::<Vec<Vector3<f32>>>(), 
-            (0..indicies.len()).map(|x| {x as u32}).collect(),
-            uvs,
+            [].to_vec(), 
+        [0].to_vec(),
+            [].to_vec(),
             false
         );
 
