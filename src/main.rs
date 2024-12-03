@@ -1,6 +1,7 @@
 
 use std::{default, ops::RangeInclusive, sync::{Arc, Mutex}};
 
+use mesh::Mesh;
 use tobj;
 
 use camera::Camera;
@@ -9,7 +10,9 @@ use egui::{mutex, Margin, Style};
 use nalgebra::{Matrix3, Orthographic3, Vector3, Vector4};
 
 mod Shader;
-use Shader::{Mesh, ShaderProgram};
+use Shader::ShaderProgram;
+
+mod mesh;
 
 
 mod camera;
@@ -98,19 +101,6 @@ impl eframe::App for App {
 
             ui.collapsing("Visual Properties", |ui| {
                 if ui.toggle_value(&mut self.mesh.lock().unwrap().wireframe, "Wireframe").clicked() {    
-                    let positions = self.mesh.lock().unwrap().positions.clone();
-                    let indicies = self.mesh.lock().unwrap().indicies.clone();
-                    let wireframe = self.mesh.lock().unwrap().wireframe;
-
-                    // println!("Toggle Wireframe");
-
-                    // let mesh = Mesh::new(&_frame.gl().unwrap(), 
-                    //     indicies.iter().map(|i| {positions[*i as usize]}).collect::<Vec<Vector3<f32>>>(), 
-                    //     (0..indicies.len()).map(|x| {x as u32}).collect(),
-                    //     wireframe
-                    // );
-
-                    // *self.mesh.lock().unwrap() = mesh;
                     self.mesh.lock().unwrap().load_buffers(&_frame.gl().unwrap());
                 }
             });
