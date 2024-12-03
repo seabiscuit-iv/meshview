@@ -20,13 +20,13 @@ pub struct Mesh {
 
 
 impl Mesh {
-    pub fn new(gl: &glow::Context, positions: Vec<Vector3<f32>>, indicies: Vec<u32>, wireframe: bool) -> Self {
+    pub fn new(gl: &glow::Context, positions: Vec<Vector3<f32>>, indicies: Vec<u32>, uvs: Vec<Vector2<f32>>, wireframe: bool) -> Self {
         use glow::HasContext as _;
 
         unsafe {
             let vert_count = positions.len();
 
-            let mut uvs: Vec<Vector2<f32>> = Vec::new();
+            let mut uvs = uvs.clone();
             
             for _ in 0..vert_count {
                 let x : Vector2<f32> = [0.0, 0.0].into();

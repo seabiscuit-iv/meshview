@@ -7,7 +7,7 @@ use tobj;
 use camera::Camera;
 use eframe::{egui, egui_glow, glow::{self, HasContext, RIGHT}};
 use egui::{mutex, Margin, Style};
-use nalgebra::{Matrix3, Orthographic3, Vector3, Vector4};
+use nalgebra::{Matrix3, Orthographic3, Vector2, Vector3, Vector4};
 
 mod Shader;
 use Shader::ShaderProgram;
@@ -76,10 +76,19 @@ impl eframe::App for App {
                         let indicies = mesh_obj.mesh.indices.chunks_exact(3).map(|c| {
                             [c[0], c[1], c[2]]
                         }).flatten().collect::<Vec<u32>>();
+
+                        let texcoords = mesh_obj.mesh.texcoords.chunks_exact(2).map(|x| {
+                            Vector2::new(x[0], x[1])
+                        }).collect::<Vec<Vector2<f32>>>();
+                
+                        let uvs = mesh_obj.mesh.texcoord_indices.iter().map(|x| {
+                            texcoords[*x as usize]
+                        }).collect::<Vec<Vector2<f32>>>();
                 
                         let mesh = Mesh::new(&_frame.gl().unwrap(), 
                             indicies.iter().map(|i| {positions[*i as usize]}).collect::<Vec<Vector3<f32>>>(), 
                             (0..indicies.len()).map(|x| {x as u32}).collect(),
+                            uvs,
                             false
                         );
 
@@ -211,9 +220,18 @@ impl App {
             [c[0], c[1], c[2]]
         }).flatten().collect::<Vec<u32>>();
 
+        let texcoords = mesh_obj.mesh.texcoords.chunks_exact(2).map(|x| {
+            Vector2::new(x[0], x[1])
+        }).collect::<Vec<Vector2<f32>>>();
+
+        let uvs = mesh_obj.mesh.texcoord_indices.iter().map(|x| {
+            texcoords[*x as usize]
+        }).collect::<Vec<Vector2<f32>>>();
+
         let mesh = Mesh::new(&gl, 
             indicies.iter().map(|i| {positions[*i as usize]}).collect::<Vec<Vector3<f32>>>(), 
             (0..indicies.len()).map(|x| {x as u32}).collect(),
+            uvs,
             false
         );
 
