@@ -97,7 +97,7 @@
                 );
 
                 gl.bind_vertex_array(Some(mesh.vertex_array));
-                gl.draw_elements(glow::LINES, mesh.index_buffer_size as i32, glow::UNSIGNED_INT, 0);
+                gl.draw_elements(if mesh.wireframe {glow::LINES} else {glow::TRIANGLES}, mesh.index_buffer_size as i32, glow::UNSIGNED_INT, 0);
             }
         }
     }
@@ -117,12 +117,13 @@
         color_buffer: glow::Buffer,
         index_buffer: glow::Buffer,
         uv_buffer: glow::Buffer,
-        index_buffer_size: u32
+        index_buffer_size: u32,
+        pub wireframe: bool
     }
 
 
     impl Mesh {
-        pub fn new(gl: &glow::Context, positions: Vec<Vector3<f32>>, indicies: Vec<u32>) -> Self {
+        pub fn new(gl: &glow::Context, positions: Vec<Vector3<f32>>, indicies: Vec<u32>, wireframe: bool) -> Self {
             use glow::HasContext as _;
 
             unsafe {
@@ -158,36 +159,9 @@
                 let uv_buffer = gl.create_buffer().expect("Cannot create uv buffer");
                 let index_buffer = gl.create_buffer().expect("Cannot create index buffer");
 
-                
                 let vertex_array = gl.create_vertex_array().expect("Cannot create vertex array");
-                gl.bind_vertex_array(Some(vertex_array));
-                gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(index_buffer));
-                gl.buffer_data_u8_slice(glow::ELEMENT_ARRAY_BUFFER, bytemuck::cast_slice(&indicies.chunks_exact(3).map(|x| {
-                    [x[0], x[1], x[1], x[2], x[2], x[0]]
-                } ).flatten().collect::<Vec<u32>>()), glow::STATIC_DRAW);
 
-                gl.bind_buffer(glow::ARRAY_BUFFER, Some(position_buffer));
-                gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytemuck::cast_slice(&positions.iter().flat_map(|x| {
-                    vec![x.x, x.y, x.z, 1.0].into_iter()
-                }).collect::<Vec<f32>>()), glow::STATIC_DRAW);
-                gl.vertex_attrib_pointer_f32(0, 4, glow::FLOAT, false, 0, 0);  // Position (2 floats per vertex)
-                gl.enable_vertex_attrib_array(0);  // Enable position attribute
-
-                gl.bind_buffer(glow::ARRAY_BUFFER, Some(color_buffer));
-                gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytemuck::cast_slice(&colors.iter().flat_map(|x| {
-                    vec![x.x, x.y, x.z, x.w].into_iter()
-                }).collect::<Vec<f32>>()), glow::STATIC_DRAW);
-                gl.vertex_attrib_pointer_f32(1, 4, glow::FLOAT, false, 0, 0);  // Color (4 floats per vertex)
-                gl.enable_vertex_attrib_array(1);  // Enable color attribute
-
-                gl.bind_buffer(glow::ARRAY_BUFFER, Some(uv_buffer));
-                gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytemuck::cast_slice(&uvs.iter().flat_map(|x|{
-                    vec![x.x, x.y].into_iter()
-                }).collect::<Vec<f32>>()), glow::STATIC_DRAW);
-                gl.vertex_attrib_pointer_f32(2, 2, glow::FLOAT, false, 0, 0);
-                gl.enable_vertex_attrib_array(2);  // Enable uv attribute
-
-                Self {
+                let mut x = Self {
                     positions: positions.clone(), 
                     indicies: indicies.clone(),
                     uvs: uvs.clone(),
@@ -197,8 +171,59 @@
                     color_buffer,
                     index_buffer,
                     uv_buffer,
-                    index_buffer_size: 2*indicies.len() as u32
-                }
+                    index_buffer_size: (if wireframe {2} else {1})*indicies.len() as u32,
+                    wireframe
+                };
+
+                x.load_buffers(gl);
+
+                x
+            }
+        }
+
+
+        pub fn load_buffers(&mut self, gl: &glow::Context) {
+            unsafe {
+                self.position_buffer = gl.create_buffer().expect("Cannot create position buffer");
+                self.color_buffer = gl.create_buffer().expect("Cannot create color buffer");
+                self.uv_buffer = gl.create_buffer().expect("Cannot create uv buffer");
+                self.index_buffer = gl.create_buffer().expect("Cannot create index buffer");
+
+                self.vertex_array = gl.create_vertex_array().expect("Cannot create vertex array");
+
+                // gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
+                gl.bind_vertex_array(Some(self.vertex_array));
+                gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(self.index_buffer));
+                gl.buffer_data_u8_slice(glow::ELEMENT_ARRAY_BUFFER, bytemuck::cast_slice(&self.indicies.chunks_exact(3).map(|x| {
+                    if self.wireframe {
+                        [x[0], x[1], x[1], x[2], x[2], x[0]].to_vec()
+                    } else {
+                        [x[0], x[1], x[2]].to_vec()
+                    }
+                } ).flatten().collect::<Vec<u32>>()), glow::STATIC_DRAW);
+
+                gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.position_buffer));
+                gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytemuck::cast_slice(&self.positions.iter().flat_map(|x| {
+                    vec![x.x, x.y, x.z, 1.0].into_iter()
+                }).collect::<Vec<f32>>()), glow::STATIC_DRAW);
+                gl.vertex_attrib_pointer_f32(0, 4, glow::FLOAT, false, 0, 0);  // Position (2 floats per vertex)
+                gl.enable_vertex_attrib_array(0);  // Enable position attribute
+
+                gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.color_buffer));
+                gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytemuck::cast_slice(&self.colors.iter().flat_map(|x| {
+                    vec![x.x, x.y, x.z, x.w].into_iter()
+                }).collect::<Vec<f32>>()), glow::STATIC_DRAW);
+                gl.vertex_attrib_pointer_f32(1, 4, glow::FLOAT, false, 0, 0);  // Color (4 floats per vertex)
+                gl.enable_vertex_attrib_array(1);  // Enable color attribute
+
+                gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.uv_buffer));
+                gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytemuck::cast_slice(&self.uvs.iter().flat_map(|x|{
+                    vec![x.x, x.y].into_iter()
+                }).collect::<Vec<f32>>()), glow::STATIC_DRAW);
+                gl.vertex_attrib_pointer_f32(2, 2, glow::FLOAT, false, 0, 0);
+                gl.enable_vertex_attrib_array(2);  // Enable uv attribute
+
+                self.index_buffer_size = (if self.wireframe {2} else {1})*self.indicies.len() as u32;
             }
         }
 
@@ -212,6 +237,7 @@
                 gl.delete_buffer(self.uv_buffer);
             }
         }
+
     }
 
 

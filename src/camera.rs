@@ -5,7 +5,7 @@ pub struct Camera {
     pub look : Vector3<f32>,
     pub right: Vector3<f32>,
     fov : f32,
-    aspect_ratio : f32
+    pub aspect_ratio : f32
 }   
 
 

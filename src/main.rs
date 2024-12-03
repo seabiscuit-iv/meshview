@@ -5,7 +5,7 @@ use tobj;
 
 use camera::Camera;
 use eframe::{egui, egui_glow, glow::{self, HasContext, RIGHT}};
-use egui::{mutex, Margin};
+use egui::{mutex, Margin, Style};
 use nalgebra::{Matrix3, Orthographic3, Vector3, Vector4};
 
 mod Shader;
@@ -76,7 +76,8 @@ impl eframe::App for App {
                 
                         let mesh = Mesh::new(&_frame.gl().unwrap(), 
                             indicies.iter().map(|i| {positions[*i as usize]}).collect::<Vec<Vector3<f32>>>(), 
-                            (0..indicies.len()).map(|x| {x as u32}).collect()
+                            (0..indicies.len()).map(|x| {x as u32}).collect(),
+                            false
                         );
 
                         *self.mesh.lock().unwrap() = mesh;
@@ -93,24 +94,46 @@ impl eframe::App for App {
             ui.label(format!("Verts: {}", self.mesh.lock().unwrap().positions.len()));
             ui.label(format!("Tris: {}", self.mesh.lock().unwrap().indicies.len()/3));
 
+            ui.add_space(12.0);
 
-            ui.collapsing("Camera Position", |ui| {
+            ui.collapsing("Visual Properties", |ui| {
+                if ui.toggle_value(&mut self.mesh.lock().unwrap().wireframe, "Wireframe").clicked() {    
+                    let positions = self.mesh.lock().unwrap().positions.clone();
+                    let indicies = self.mesh.lock().unwrap().indicies.clone();
+                    let wireframe = self.mesh.lock().unwrap().wireframe;
+
+                    // println!("Toggle Wireframe");
+
+                    // let mesh = Mesh::new(&_frame.gl().unwrap(), 
+                    //     indicies.iter().map(|i| {positions[*i as usize]}).collect::<Vec<Vector3<f32>>>(), 
+                    //     (0..indicies.len()).map(|x| {x as u32}).collect(),
+                    //     wireframe
+                    // );
+
+                    // *self.mesh.lock().unwrap() = mesh;
+                    self.mesh.lock().unwrap().load_buffers(&_frame.gl().unwrap());
+                }
+            });
+
+            ui.add_space(12.0);
+
+            ui.collapsing("Camera Controls", |ui| {
+                ui.label("Position");
                 ui.horizontal(|ui| {
                     ui.add(egui::DragValue::new(&mut self.camera.lock().unwrap().pos.x));
                     ui.add(egui::DragValue::new(&mut self.camera.lock().unwrap().pos.y));
                     ui.add(egui::DragValue::new(&mut self.camera.lock().unwrap().pos.z));
-                })
-            });
-            ui.collapsing("Camera Rotation", |ui| {
+                });
+                ui.label("Rotation");
                 ui.horizontal(|ui| {
                     ui.add(egui::DragValue::new(&mut self.angle.0));
                     ui.add(egui::DragValue::new(&mut self.angle.1));
                     ui.add(egui::DragValue::new(&mut self.angle.2));
-                })
-            });
-
-            ui.collapsing("Camera Speed", |ui| {
-                ui.add(egui::Slider::new(&mut self.speed, RangeInclusive::new(0.0, 20.0)));
+                });
+                ui.label("Speed");
+                ui.horizontal(|ui| {
+                    ui.add(egui::Slider::new(&mut self.speed, RangeInclusive::new(0.0, 20.0)));
+                });
             });
         });
 
@@ -200,7 +223,8 @@ impl App {
 
         let mesh = Mesh::new(&gl, 
             indicies.iter().map(|i| {positions[*i as usize]}).collect::<Vec<Vector3<f32>>>(), 
-            (0..indicies.len()).map(|x| {x as u32}).collect()
+            (0..indicies.len()).map(|x| {x as u32}).collect(),
+            false
         );
 
         let shader_program = ShaderProgram::new(gl, "src/main.vert.glsl", "src/main.frag.glsl");
@@ -219,7 +243,10 @@ impl App {
 
     fn custom_painting(&mut self, ui : &mut egui::Ui) {
         let (rect, response) =
-            ui.allocate_exact_size(egui::Vec2::splat(400.0), egui::Sense::drag());
+            ui.allocate_exact_size(egui::vec2(ui.available_width(), ui.available_height()/2.0) , egui::Sense::drag());
+
+        self.camera.lock().unwrap().aspect_ratio = ui.available_width() / ui.available_height();
+
 
         let shader_program = self.shader_program.clone();
         let mesh = self.mesh.clone();
