@@ -7,7 +7,7 @@ use tobj;
 use camera::Camera;
 use eframe::{egui, egui_glow, glow::{self, HasContext, RIGHT}};
 use egui::{mutex, Margin, Style};
-use nalgebra::{Matrix3, Orthographic3, Vector2, Vector3, Vector4};
+use nalgebra::{Vector2, Vector3};
 
 mod Shader;
 use Shader::ShaderProgram;
