@@ -1,5 +1,6 @@
 use eframe::glow::{self, HasContext as _};
 use nalgebra::{Vector2, Vector3, Vector4};
+use log::{log, Level};
 
 
 
@@ -24,6 +25,10 @@ impl Mesh {
         use glow::HasContext as _;
 
         unsafe {
+            let version = gl.get_parameter_string(glow::VERSION);
+            log!(Level::Debug, "WebGL Version with: {}", version);
+
+
             let vert_count = positions.len();
 
             let mut uvs = uvs.clone();
@@ -46,7 +51,7 @@ impl Mesh {
                 }
             }
 
-            let position_buffer: glow::NativeBuffer = gl.create_buffer().expect("Cannot create position buffer");
+            let position_buffer = gl.create_buffer().expect("Cannot create position buffer");
             let color_buffer = gl.create_buffer().expect("Cannot create color buffer");
             let uv_buffer = gl.create_buffer().expect("Cannot create uv buffer");
             let index_buffer = gl.create_buffer().expect("Cannot create index buffer");

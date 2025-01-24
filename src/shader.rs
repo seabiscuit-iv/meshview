@@ -7,6 +7,49 @@
     use crate::{camera::Camera, mesh::Mesh};
 
     
+    const VERT_SHADER : &str = r#" #version 300 es
+    precision mediump float;
+
+    layout (location = 0) in vec4 vs_pos;
+    layout (location = 1) in vec4 vs_col;
+    layout (location = 2) in vec2 vs_uv;
+
+    out vec4 fs_col;
+    out vec2 fs_uv;
+
+    uniform mat4 u_ViewProj;
+
+    void main() {
+        fs_col = vs_col;
+        fs_uv = vs_uv;
+
+        gl_Position = u_ViewProj * vs_pos;
+    }
+
+    "#;
+
+    const FRAG_SHADER : &str = r#" #version 300 es
+        precision mediump float;
+
+        in vec4 fs_col;
+        in vec2 fs_uv;
+        out vec4 frag_color;
+
+        void main() {
+            // frag_color = vec4(fs_uv, 0, 1);  // Sample the texture
+            // frag_color = vec4(1 - fs_uv, 0, 1);
+            // frag_color = vec4(fs_col.xyz, 1.0);
+            // frag_color = vec4(1.0, 1.0, 1.0, 1.0);
+            // frag_color  = vec4(gl_FragCoord.z);
+            frag_color = fs_col;
+        }
+    "#;
+
+
+
+
+
+
     pub struct ShaderProgram {
         pub program : glow::Program,
         vert_shader: glow::Shader,
@@ -22,8 +65,10 @@
                 let program = gl.create_program().expect("Cannot create program");
 
                 let (vertex_shader_source, fragment_shader_source) = (
-                    std::fs::read_to_string(vs_path).unwrap(),
-                    std::fs::read_to_string(fs_path).unwrap(),
+                    // std::fs::read_to_string(vs_path).unwrap(),
+                    // std::fs::read_to_string(fs_path).unwrap(),
+                    VERT_SHADER,
+                    FRAG_SHADER
                 );
 
                 let shader_sources = [

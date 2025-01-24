@@ -1,13 +1,17 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::{default, ops::RangeInclusive, sync::{Arc, Mutex}};
+use std::{default, env, fs::File, io::BufReader, ops::RangeInclusive, sync::{Arc, Mutex}};
 
+use ::egui::ahash::AHashMap;
 use mesh::Mesh;
 use tobj;
+use log::{log, Level, LevelFilter};
 
 use camera::Camera;
 use eframe::{egui, egui_glow, glow::{self, HasContext, RIGHT}};
 use egui::{mutex, Margin, Style};
 use nalgebra::{Vector2, Vector3};
+use tokio::task;
 
 mod Shader;
 use Shader::ShaderProgram;
@@ -17,7 +21,7 @@ mod mesh;
 
 mod camera;
 
-
+#[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result{
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([420.0, 600.0]).with_position([100.0, 100.0]),
@@ -32,6 +36,56 @@ fn main() -> eframe::Result{
         Box::new(|cc| Ok(Box::new(App::new(cc)))),
     )
 }
+
+
+// When compiling to web using trunk:
+#[cfg(target_arch = "wasm32")]
+fn main() {
+    use eframe::wasm_bindgen::JsCast as _;
+
+    // Redirect `log` message to `console.log` and friends:
+    eframe::WebLogger::init(log::LevelFilter::Debug).ok();
+
+    let web_options = eframe::WebOptions::default();
+
+    wasm_bindgen_futures::spawn_local(async {
+        let document = web_sys::window()
+            .expect("No window")
+            .document()
+            .expect("No document");
+
+        let canvas = document
+            .get_element_by_id("the_canvas_id")
+            .expect("Failed to find the_canvas_id")
+            .dyn_into::<web_sys::HtmlCanvasElement>()
+            .expect("the_canvas_id was not a HtmlCanvasElement");
+        
+
+        let start_result = eframe::WebRunner::new()
+            .start(
+                canvas,
+                web_options,
+                Box::new(|cc| Ok(Box::new(App::new(cc)))),
+            )
+            .await;
+
+        // Remove the loading text and spinner:
+        if let Some(loading_text) = document.get_element_by_id("loading_text") {
+            match start_result {
+                Ok(_) => {
+                    loading_text.remove();
+                }
+                Err(e) => {
+                    loading_text.set_inner_html(
+                        "<p> The app has crashed. See the developer console for details. </p>",
+                    );
+                    panic!("Failed to start eframe: {e:?}");
+                }
+            }
+        }
+    });
+}
+
 
 
 // Main App UI
@@ -56,44 +110,63 @@ impl eframe::App for App {
             })
             .show(ctx, |ui| {
                 if ui.button("Open File").clicked() {
-                    if let Some(path) = rfd::FileDialog::new().pick_file() {
-                        let mut load_options = tobj::LoadOptions::default();
-                        load_options.triangulate = true;
-                        load_options.ignore_lines = true;
-                        load_options.ignore_points = true;
-                        load_options.single_index = true;
+                    // if let Some(path) = rfd::FileDialog::new().pick_file() {
+                    if let Some(path) = Some("C:/Users/saahi/Documents/Homework/mesh-editor-project-seabiscuit-iv/obj_files/cow.obj") {
+                        #[cfg(target_arch = "wasm32")] {
+                            self.start_async_task(ctx);
+                        }
+                        // let mut load_options = tobj::LoadOptions::default();
+                        // load_options.triangulate = true;
+                        // load_options.ignore_lines = true;
+                        // load_options.ignore_points = true;
+                        // load_options.single_index = true;
 
-                        let mesh_obj = tobj::load_obj(path, &load_options);
-                        assert!(mesh_obj.is_ok());
-                
-                        let (mesh_objs, _) = mesh_obj.expect("FAILED TO LOAD OBJ");
-                        let mesh_obj = mesh_objs[0].clone();
-                
-                        let positions = mesh_obj.mesh.positions.chunks_exact(3).into_iter().map(|chunk| {
-                            Vector3::new(chunk[0], chunk[1], chunk[2])
-                        }).collect::<Vec<Vector3<f32>>>();
-                
-                        let indicies = mesh_obj.mesh.indices.chunks_exact(3).map(|c| {
-                            [c[0], c[1], c[2]]
-                        }).flatten().collect::<Vec<u32>>();
+                        // let dir = env::current_dir().unwrap();
+                        // let mut obj = dir.clone();
+                        // obj.push("cow.obj");
+                        // let mut obj_file = BufReader::new(File::open(obj.as_path()).unwrap());
 
-                        let texcoords = mesh_obj.mesh.texcoords.chunks_exact(2).map(|x| {
-                            Vector2::new(x[0], x[1])
-                        }).collect::<Vec<Vector2<f32>>>();
-                
-                        let uvs = mesh_obj.mesh.texcoord_indices.iter().map(|x| {
-                            texcoords[*x as usize]
-                        }).collect::<Vec<Vector2<f32>>>();
-                
-                        let mesh = Mesh::new(&_frame.gl().unwrap(), 
-                            indicies.iter().map(|i| {positions[*i as usize]}).collect::<Vec<Vector3<f32>>>(), 
-                            (0..indicies.len()).map(|x| {x as u32}).collect(),
-                            texcoords,
-                            false
-                        );
+                        // let mesh_obj = tobj::load_obj_buf_async(&mut obj_file, &load_options, move |p| {
+                        //     let dir_clone = dir.clone();
 
-                        *self.mesh.lock().unwrap() = mesh;
-                        println!("New Mesh with {} verts", self.mesh.lock().unwrap().positions.len());
+                        //     async move {
+                        //         Ok((Vec::new(), AHashMap::new()))
+                        //     }
+                        // }).await;
+
+                        // while !mesh_obj.is_ok() {
+
+                        // };
+                        // assert!(mesh_obj.is_ok());
+                
+                        // let (mesh_objs, _) = mesh_obj.expect("FAILED TO LOAD OBJ");
+                        // let mesh_obj = mesh_objs[0].clone();
+                
+                        // let positions = mesh_obj.mesh.positions.chunks_exact(3).into_iter().map(|chunk| {
+                        //     Vector3::new(chunk[0], chunk[1], chunk[2])
+                        // }).collect::<Vec<Vector3<f32>>>();
+                
+                        // let indicies = mesh_obj.mesh.indices.chunks_exact(3).map(|c| {
+                        //     [c[0], c[1], c[2]]
+                        // }).flatten().collect::<Vec<u32>>();
+
+                        // let texcoords = mesh_obj.mesh.texcoords.chunks_exact(2).map(|x| {
+                        //     Vector2::new(x[0], x[1])
+                        // }).collect::<Vec<Vector2<f32>>>();
+                
+                        // let uvs = mesh_obj.mesh.texcoord_indices.iter().map(|x| {
+                        //     texcoords[*x as usize]
+                        // }).collect::<Vec<Vector2<f32>>>();
+                
+                        // let mesh = Mesh::new(&_frame.gl().unwrap(), 
+                        //     indicies.iter().map(|i| {positions[*i as usize]}).collect::<Vec<Vector3<f32>>>(), 
+                        //     (0..indicies.len()).map(|x| {x as u32}).collect(),
+                        //     texcoords,
+                        //     false
+                        // );
+
+                        // *self.mesh.lock().unwrap() = mesh;
+                        // println!("New Mesh with {} verts", self.mesh.lock().unwrap().positions.len());
                     }
                 }
             });
@@ -219,6 +292,36 @@ impl App {
             speed: 10.0
         }
     }
+
+    #[cfg(target_arch = "wasm32")]
+    fn start_async_task(&self, ctx: &egui::Context) {
+        use eframe::wasm_bindgen::JsCast as _;
+        use wasm_bindgen_futures::spawn_local;
+        spawn_local(async {
+            // Simulate some async work (e.g., loading a file)
+            // web_sys::console::log_1(&"Async task finished!".into());
+
+            let mut load_options = tobj::LoadOptions::default();
+                load_options.triangulate = true;
+                load_options.ignore_lines = true;
+                load_options.ignore_points = true;
+                load_options.single_index = true;
+
+                let dir = "C:/Users/saahi/Documents/projects/meshview/".to_string();
+                let mut obj = dir.clone();
+                obj.push_str("cow.obj");
+                let mut obj_file = BufReader::new();
+
+                let mesh_obj = tobj::load_obj_buf_async(&mut obj_file, &load_options, move |p| {
+                    let dir_clone = dir.clone();
+
+                    async move {
+                        Ok((Vec::new(), AHashMap::new()))
+                    }
+                }).await;
+            log!(Level::Debug, "nuts");
+        })
+    }   
 
     fn custom_painting(&mut self, ui : &mut egui::Ui) {
         let (rect, response) =
